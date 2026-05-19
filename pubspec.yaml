@@ -1,0 +1,28 @@
+name: openclaw_phone_bridge
+description: OpenClaw Phone Bridge - Control alarms, calendar, notifications from your AI agent.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^17.2.1+2
+  web_socket_channel: ^3.0.0
+  crypto: ^3.0.3
+  shared_preferences: ^2.2.2
+  uuid: ^4.3.3
+  intl: ^0.19.0
+  table_calendar: ^3.1.0
+  provider: ^6.1.1
+  permission_handler: ^11.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
