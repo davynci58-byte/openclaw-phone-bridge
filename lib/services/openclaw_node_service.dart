@@ -134,7 +134,7 @@ class OpenClawNodeService {
 
   Uri _buildWsUri() {
     final scheme = AppConfig.useTls ? 'wss' : 'ws';
-    return Uri.parse('$scheme://${AppConfig.gatewayHost}:${AppConfig.gatewayPort}');
+    return Uri.parse('$scheme://${AppConfig.gatewayHost}:${AppConfig.gatewayPort}${AppConfig.gatewayPath}');
   }
 
   // ── Message Handler ────────────────────────────────────────────────
