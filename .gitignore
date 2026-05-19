@@ -1,0 +1,39 @@
+# Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+*.iml
+.idea/
+.vscode/
+*.lock
+*.log
+*.pyc
+*.swp
+.DS_Store
+flutter_export_environment.sh
+Generated.xcconfig
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+*.keystore
+
+# iOS
+ios/.symlinks/
+ios/Pods/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# macOS
+macos/Pods/
+
+# Web
+web/
+
+# Windows
+windows/
+
+# Linux
+linux/

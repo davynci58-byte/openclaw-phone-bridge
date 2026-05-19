@@ -1,0 +1,16 @@
+{
+  "name": "phone-bridge",
+  "description": "Control your phone's alarms, calendar, and notifications through the OpenClaw node bridge.",
+  "command": "phone-bridge.sh",
+  "args": [
+    {
+      "name": "command",
+      "description": "The command to run on the phone. One of: phone.ping, alarm.set, alarm.list, alarm.clear, alarm.toggle, calendar.list, calendar.add, calendar.remove, calendar.upcoming, notification.send",
+      "required": true
+    }
+  ],
+  "argsStdin": true,
+  "env": {},
+  "timeout": 15,
+  "output": "text"
+}
