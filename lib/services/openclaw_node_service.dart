@@ -217,7 +217,7 @@ class OpenClawNodeService {
       'role': 'node',
       'scopes': <String>[],
       'client': {
-        'id': 'flutter-phone-bridge',
+        'id': 'openclaw-android',
         'version': AppConfig.appVersion,
         'platform': 'android',
         'mode': 'node',
@@ -233,7 +233,7 @@ class OpenClawNodeService {
       'minProtocol': 3,
       'maxProtocol': 3,
       'client': {
-        'id': 'flutter-phone-bridge',
+        'id': 'openclaw-android',
         'version': AppConfig.appVersion,
         'platform': 'android',
         'mode': 'node',
