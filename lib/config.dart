@@ -9,10 +9,8 @@ class AppConfig {
   /// Gateway WebSocket port (same as HTTP port, usually 443 or 8443).
   static const int gatewayPort = 443;
 
-  /// WebSocket path (e.g. /gateway/ for nginx proxy routes).
-  /// This allows routing through the existing nginx on port 443
-  /// without needing a separate port.
-  static const String gatewayPath = '/gateway/';
+  /// WebSocket path for the relay server (nginx proxy).
+  static const String gatewayPath = '/relay/';
 
   /// Use WSS (true) or WS (false) — always true for remote VPS.
   static const bool useTls = true;
