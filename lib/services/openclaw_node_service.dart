@@ -100,9 +100,11 @@ class OpenClawNodeService {
     if (!_active) return;
     _updateState(NodeConnectionState.connecting, 'Connecting...');
 
+    // Load the gateway token from user's settings before connecting
+    await _loadGatewayToken();
+
     try {
       final uri = await _buildWsUri();
-      _channel = WebSocketChannel.connect(uri);
 
       _channel!.stream.listen(
         _onMessage,
@@ -204,6 +206,15 @@ class OpenClawNodeService {
     }
   }
 
+  String _gatewayToken = '';
+
+  /// Load the gateway token from SharedPreferences (user settings).
+  /// Must be called before connecting (called from _connect).
+  Future<void> _loadGatewayToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    _gatewayToken = prefs.getString('gateway_token') ?? '';
+  }
+
   Map<String, dynamic> _createSignedConnectPayload() {
     final pk = _privateKey;
     final deviceId = _storage.deviceId;
@@ -229,6 +240,11 @@ class OpenClawNodeService {
         ? bytesToHex(ed.sign(pk, Uint8List.fromList(utf8.encode(payloadStr))).toList())
         : '';
 
+    // Use the token from Settings if set, fall back to device token
+    final authToken = _gatewayToken.isNotEmpty
+        ? _gatewayToken
+        : _storage.deviceToken;
+
     return {
       'minProtocol': 3,
       'maxProtocol': 3,
@@ -248,11 +264,7 @@ class OpenClawNodeService {
         'notification.send': true,
       },
       'auth': {
-        if (AppConfig.gatewayToken.isNotEmpty) 'token': AppConfig.gatewayToken,
-        if (AppConfig.gatewayPassword.isNotEmpty)
-          'password': AppConfig.gatewayPassword,
-        if (_storage.deviceToken != null)
-          'token': _storage.deviceToken,
+        if (authToken != null && authToken.isNotEmpty) 'token': authToken,
       },
       'locale': 'en-US',
       'userAgent': 'openclaw-flutter-phone-bridge/${AppConfig.appVersion}',

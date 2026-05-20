@@ -46,17 +46,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return t.length > 8 ? '${t.substring(0, 4)}...${t.substring(t.length - 4)}' : t;
   }
 
+  Future<String> _loadToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('gateway_token') ?? '';
+  }
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final host = prefs.getString('gateway_host');
     final port = prefs.getInt('gateway_port');
     final path = prefs.getString('gateway_path');
     final tls = prefs.getBool('gateway_tls');
+    final token = prefs.getString('gateway_token');
     setState(() {
       if (host != null) _hostCtl.text = host;
       if (port != null) _portCtl.text = port.toString();
       if (path != null) _pathCtl.text = path;
       if (tls != null) _useTls = tls;
+      if (token != null && token.isNotEmpty) _tokenCtl.text = token;
     });
   }
 
@@ -66,6 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setInt('gateway_port', int.tryParse(_portCtl.text) ?? 443);
     await prefs.setString('gateway_path', _pathCtl.text.trim());
     await prefs.setBool('gateway_tls', _useTls);
+    await prefs.setString('gateway_token', _tokenCtl.text.trim());
   }
 
   // ── Manage Connection ───────────────────────────────────────────
