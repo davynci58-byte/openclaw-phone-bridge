@@ -50,11 +50,9 @@ class OpenClawNodeService {
     required this.onInvoke,
   }) : _storage = storage;
 
-  String get deviceId => _storage.deviceId;
-  String get shortDeviceId =>
-      _storage.deviceId.length > 8
-          ? _storage.deviceId.substring(0, 8)
-          : _storage.deviceId;
+  String get deviceId => _storage.rawPublicKeyHex.isEmpty ? _storage.deviceId : _deviceId;
+  String _deviceId = '';
+  String get shortDeviceId => deviceId.length > 8 ? deviceId.substring(0, 8) : deviceId;
 
   bool get isConnected => _channel != null && _active;
 
@@ -84,7 +82,9 @@ class OpenClawNodeService {
       bytesToHex(kp.privateKey.bytes.toList()),
       bytesToHex(kp.publicKey.bytes.toList()),
     );
-    log('🔑 Generated new Ed25519 device keypair');
+    // Compute deviceId = SHA-256(raw public key bytes), same as gateway
+    _deviceId = _sha256Hex(_storage.rawPublicKeyHex);
+    log('🔑 Generated new Ed25519 device keypair, deviceId=${_deviceId.substring(0, 8)}...');
   }
 
   ed.PrivateKey? get _privateKey {
@@ -220,33 +220,32 @@ class OpenClawNodeService {
 
   Map<String, dynamic> _createSignedConnectPayload() {
     final pk = _privateKey;
-    final deviceId = _storage.deviceId;
     final nonce = _connectNonce ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
 
-    final payloadToSign = {
-      'deviceId': deviceId,
-      'nonce': nonce,
-      'ts': ts,
-      'role': 'node',
-      'scopes': <String>[],
-      'client': {
-        'id': 'openclaw-android',
-        'version': AppConfig.appVersion,
-        'platform': 'android',
-        'mode': 'node',
-      },
-    };
-
-    final payloadStr = jsonEncode(payloadToSign);
-    final sig = pk != null
-        ? bytesToHex(ed.sign(pk, Uint8List.fromList(utf8.encode(payloadStr))).toList())
-        : '';
-
-    // Use the token from Settings if set, fall back to device token
+    // Gateway expects pipe-separated payload for signature verification:
+    // v3|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce|platform|deviceFamily
     final authToken = _gatewayToken.isNotEmpty
         ? _gatewayToken
-        : _storage.deviceToken;
+        : _storage.deviceToken ?? '';
+    final scopes = <String>[];
+    final signaturePayloadV3 = [
+      'v3',
+      _deviceId,
+      'openclaw-android',
+      'node',
+      'node',
+      scopes.join(','),
+      ts.toString(),
+      authToken,
+      nonce,
+      'android',       // platform
+      '',               // deviceFamily
+    ].join('|');
+
+    final sig = pk != null
+        ? bytesToBase64Url(ed.sign(pk, Uint8List.fromList(utf8.encode(signaturePayloadV3))).toList())
+        : '';
 
     return {
       'minProtocol': 3,
@@ -258,7 +257,7 @@ class OpenClawNodeService {
         'mode': 'node',
       },
       'role': 'node',
-      'scopes': <String>[],
+      'scopes': scopes,
       'caps': AppConfig.nodeCaps,
       'commands': AppConfig.nodeCommands,
       'permissions': {
@@ -267,13 +266,13 @@ class OpenClawNodeService {
         'notification.send': true,
       },
       'auth': {
-        if (authToken != null && authToken.isNotEmpty) 'token': authToken,
+        if (authToken.isNotEmpty) 'token': authToken,
       },
       'locale': 'en-US',
       'userAgent': 'openclaw-flutter-phone-bridge/${AppConfig.appVersion}',
       'device': {
-        'id': deviceId,
-        'publicKey': _storage.rawPublicKeyHex,
+        'id': _deviceId,
+        'publicKey': bytesToBase64Url(hexToBytes(_storage.rawPublicKeyHex)),
         'signature': sig,
         'signedAt': ts,
         'nonce': nonce,
@@ -424,12 +423,24 @@ class OpenClawNodeService {
   String bytesToHex(List<int> bytes) =>
       bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+  String bytesToBase64Url(List<int> bytes) {
+    // Standard base64 then replace +/ with -_ and remove padding
+    final b64 = base64Encode(bytes);
+    return b64.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  }
+
   List<int> hexToBytes(String hex) {
     final buf = <int>[];
     for (var i = 0; i < hex.length; i += 2) {
       buf.add(int.parse(hex.substring(i, i + 2), radix: 16));
     }
     return buf;
+  }
+
+  String _sha256Hex(String hexKey) {
+    final bytes = hexToBytes(hexKey);
+    final hash = sha256.convert(bytes);
+    return hash.toString();
   }
 
   String jsonToString(Map<String, dynamic> json) {
