@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/openclaw_node_service.dart';
+import '../config.dart';
 import '../services/storage_service.dart';
 import '../config.dart';
 
@@ -28,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _portCtl =
         TextEditingController(text: AppConfig.gatewayPort.toString());
     _pathCtl = TextEditingController(text: AppConfig.gatewayPath);
-    _tokenCtl = TextEditingController(text: _maskedToken);
+    _tokenCtl = TextEditingController(text: '');
     _loadPrefs();
   }
 
@@ -41,15 +42,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  String get _maskedToken {
-    final t = AppConfig.gatewayToken;
-    return t.length > 8 ? '${t.substring(0, 4)}...${t.substring(t.length - 4)}' : t;
-  }
 
-  Future<String> _loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('gateway_token') ?? '';
-  }
+
+
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();

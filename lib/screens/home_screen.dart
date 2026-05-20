@@ -111,8 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSummaryCards(BuildContext context) {
     final theme = Theme.of(context);
-    final upcomingEvents = widget.calendarService.upcomingEvents(24);
     final activeAlarms = widget.alarmService.alarms.where((a) => a.enabled).length;
+    widget.calendarService.upcomingEvents(24); // pre-warm cache
 
     return Row(
       children: [
