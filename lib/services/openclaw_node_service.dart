@@ -36,6 +36,7 @@ class OpenClawNodeService {
   bool _active = false;
   int _requestIdCounter = 0;
   String? _connectNonce;
+  bool _sentConnect = false;
   bool _debug = true;
 
   final ValueNotifier<NodeConnectionState> stateNotifier =
@@ -112,16 +113,11 @@ class OpenClawNodeService {
         onDone: _onDone,
       );
 
-      // If no connect.challenge in 10s, send connect directly
+      // If no connect.challenge in 10s (or missed it), send connect directly
       Future.delayed(const Duration(seconds: 10), () {
-        if (_connectNonce == null && _active) {
+        if (!_sentConnect && _active) {
           log('⚠️ No connect.challenge received, sending connect directly');
-          _sendFrame(
-            type: WsFrame.req,
-            id: _nextRequestId(),
-            method: 'connect',
-            params: _createSignedConnectPayload(),
-          );
+          _sendConnect();
         }
       });
     } catch (e) {
@@ -154,14 +150,10 @@ class OpenClawNodeService {
       if (_debug) log('📩  <- ${jsonToString(json)}');
 
       if (frame.isConnectChallenge) {
+        if (_sentConnect) return;
         _connectNonce = frame.payload?['nonce'] as String?;
         log('🔐 Received connect.challenge (nonce: ${_connectNonce?.substring(0, 8)}...)');
-        _sendFrame(
-          type: WsFrame.req,
-          id: _nextRequestId(),
-          method: 'connect',
-          params: _createSignedConnectPayload(),
-        );
+        _sendConnect();
         return;
       }
 
@@ -204,6 +196,17 @@ class OpenClawNodeService {
     } catch (e) {
       log('⚠️ Parse error: $e');
     }
+  }
+
+  void _sendConnect() {
+    if (_sentConnect) return;
+    _sentConnect = true;
+    _sendFrame(
+      type: WsFrame.req,
+      id: _nextRequestId(),
+      method: 'connect',
+      params: _createSignedConnectPayload(),
+    );
   }
 
   String _gatewayToken = '';
@@ -388,6 +391,7 @@ class OpenClawNodeService {
     _reconnectTimer = Timer(Duration(milliseconds: delay), () {
       _channel = null;
       _connectNonce = null;
+      _sentConnect = false;
       _connect();
     });
   }

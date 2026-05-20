@@ -14,6 +14,7 @@ class AlarmService extends ChangeNotifier {
 
   List<DeviceAlarm> _alarms = [];
   Timer? _checkTimer;
+  final Set<String> _firedAlarmKeys = {};
 
   /// Callback when an alarm fires (for OpenClaw event).
   void Function(DeviceAlarm alarm)? onAlarmFired;
@@ -122,6 +123,8 @@ class AlarmService extends ChangeNotifier {
   void _checkDueAlarms() {
     final now = DateTime.now();
     final currentMinutes = now.hour * 60 + now.minute;
+    // Build a key for this minute to prevent duplicate fires
+    final minuteKey = '${now.year}-${now.month}-${now.day}-$currentMinutes';
 
     for (final alarm in _alarms) {
       if (!alarm.enabled) continue;
@@ -131,6 +134,16 @@ class AlarmService extends ChangeNotifier {
       final today = now.weekday == 7 ? 0 : now.weekday; // Sun = 0
       if (alarm.repeatDays.any((d) => d)) {
         if (!alarm.repeatDays[today]) continue;
+      }
+
+      // Skip if this alarm already fired in this minute
+      final alarmKey = '$minuteKey-${alarm.id}';
+      if (_firedAlarmKeys.contains(alarmKey)) continue;
+      _firedAlarmKeys.add(alarmKey);
+
+      // Clean up old minute keys to avoid memory leak
+      if (_firedAlarmKeys.length > 100) {
+        _firedAlarmKeys.removeWhere((k) => !k.startsWith(minuteKey.substring(0, 10)));
       }
 
       // Fire alarm
@@ -198,8 +211,15 @@ class AlarmService extends ChangeNotifier {
     // Cancel existing first
     _notifPlugin.cancel(id.hashCode);
 
-    // Use tz.TZDateTime for cross-platform compatibility
-    final tzScheduled = tz.TZDateTime.from(scheduledAt, tz.local);
+    // Use TZDateTime.utc() — no timezone database needed
+    final tzScheduled = tz.TZDateTime.utc(
+      scheduledAt.year,
+      scheduledAt.month,
+      scheduledAt.day,
+      scheduledAt.hour,
+      scheduledAt.minute,
+      scheduledAt.second,
+    );
 
     await _notifPlugin.zonedSchedule(
       id.hashCode,
