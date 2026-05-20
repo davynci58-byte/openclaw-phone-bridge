@@ -184,7 +184,7 @@ class AlarmService extends ChangeNotifier {
 
   void _scheduleAlarmNotification(DeviceAlarm alarm) {
     if (!alarm.enabled) return;
-    final scheduledAt = alarm.time.nextOccurrence(DateTime.now());
+    final scheduledAt = alarm.time.nextOccurrence(DateTime.now(), alarm.repeatDays);
     final hasRepeat = alarm.repeatDays.any((d) => d);
     _scheduleNotif(
       id: alarm.id,
@@ -206,19 +206,49 @@ class AlarmService extends ChangeNotifier {
   }) async {
     final now = DateTime.now();
     final diff = scheduledAt.difference(now);
-    if (diff.isNegative || diff.inMinutes < 1) return;
+    if (diff.isNegative) return;
 
     // Cancel existing first
     _notifPlugin.cancel(id.hashCode);
 
-    // Use TZDateTime.utc() — no timezone database needed
+    // For alarms less than 1 minute away, show immediately
+    if (diff.inMinutes < 1) {
+      _notifPlugin.show(
+        id.hashCode,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'alarm_channel',
+            'Alarms',
+            channelDescription: 'Phone alarm notifications',
+            importance: Importance.high,
+            priority: Priority.high,
+            fullScreenIntent: true,
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
+            presentBadge: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Convert local time to UTC for correct absolute-time scheduling
+    // TZDateTime.utc() creates a UTC timestamp, so we must pass UTC values
+    // to get the right absolute moment. Example: 07:30 UTC+2 = 05:30 UTC
+    final utcScheduled = scheduledAt.toUtc();
     final tzScheduled = tz.TZDateTime.utc(
-      scheduledAt.year,
-      scheduledAt.month,
-      scheduledAt.day,
-      scheduledAt.hour,
-      scheduledAt.minute,
-      scheduledAt.second,
+      utcScheduled.year,
+      utcScheduled.month,
+      utcScheduled.day,
+      utcScheduled.hour,
+      utcScheduled.minute,
+      utcScheduled.second,
     );
 
     await _notifPlugin.zonedSchedule(

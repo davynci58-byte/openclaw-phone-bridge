@@ -33,10 +33,13 @@ class OpenClawNodeService {
   WebSocketChannel? _channel;
   Timer? _tickTimer;
   Timer? _reconnectTimer;
+  Timer? _fallbackTimer;
+  StreamSubscription<dynamic>? _subscription;
   bool _active = false;
   int _requestIdCounter = 0;
   String? _connectNonce;
   bool _sentConnect = false;
+  int _lastTickMs = 0;
   bool _debug = true;
 
   final ValueNotifier<NodeConnectionState> stateNotifier =
@@ -50,8 +53,8 @@ class OpenClawNodeService {
     required this.onInvoke,
   }) : _storage = storage;
 
-  String get deviceId => _storage.rawPublicKeyHex.isEmpty ? _storage.deviceId : _deviceId;
   String _deviceId = '';
+  String get deviceId => _deviceId;
   String get shortDeviceId => deviceId.length > 8 ? deviceId.substring(0, 8) : deviceId;
 
   bool get isConnected => _channel != null && _active;
@@ -66,17 +69,30 @@ class OpenClawNodeService {
     _active = false;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
     _tickTimer?.cancel();
     _tickTimer = null;
+    _subscription?.cancel();
+    _subscription = null;
     await _channel?.sink.close(1000, 'Client shutdown');
     _channel = null;
+    // Clean up pending RPCs so they don't hang forever
+    for (final completer in _pendingRpcs.values) {
+      completer.completeError(Exception('Connection closed'));
+    }
+    _pendingRpcs.clear();
     _updateState(NodeConnectionState.disconnected, 'Disconnected');
   }
 
   // ── Key Management ────────────────────────────────────────────────
 
   Future<void> _ensureKeypair() async {
-    if (_storage.rawIdentityKeyHex.isNotEmpty) return;
+    if (_storage.rawIdentityKeyHex.isNotEmpty) {
+      // Recompute deviceId on every start (critical after app restart)
+      _deviceId = _sha256Hex(_storage.rawPublicKeyHex);
+      return;
+    }
     final kp = ed.generateKey();
     await _storage.storeKeypair(
       bytesToHex(kp.privateKey.bytes.toList()),
@@ -106,15 +122,19 @@ class OpenClawNodeService {
 
     try {
       final uri = await _buildWsUri();
+      _channel = WebSocketChannel.connect(uri);
 
-      _channel!.stream.listen(
+      // Cancel old subscription before creating new one
+      _subscription?.cancel();
+      _subscription = _channel!.stream.listen(
         _onMessage,
         onError: _onError,
         onDone: _onDone,
       );
 
       // If no connect.challenge in 10s (or missed it), send connect directly
-      Future.delayed(const Duration(seconds: 10), () {
+      _fallbackTimer?.cancel();
+      _fallbackTimer = Timer(const Duration(seconds: 10), () {
         if (!_sentConnect && _active) {
           log('⚠️ No connect.challenge received, sending connect directly');
           _sendConnect();
@@ -162,7 +182,10 @@ class OpenClawNodeService {
         return;
       }
 
-      if (frame.isTick) return;
+      if (frame.isTick) {
+        _lastTickMs = DateTime.now().millisecondsSinceEpoch;
+        return;
+      }
 
       if (frame.isShutdown) {
         log('⚠️ Gateway shutting down');
@@ -293,12 +316,20 @@ class OpenClawNodeService {
     final policy = payload['policy'] as Map<String, dynamic>?;
     final tickIntervalMs = policy?['tickIntervalMs'] as int? ?? 15000;
 
+    // Track last tick timestamp, only reconnect if ticks actually stop
+    _lastTickMs = DateTime.now().millisecondsSinceEpoch;
     _tickTimer?.cancel();
-    _tickTimer = Timer.periodic(Duration(milliseconds: tickIntervalMs * 2), (_) {
+    _tickTimer = Timer.periodic(Duration(milliseconds: tickIntervalMs * 3), (_) {
       if (!_active) return;
-      log('⚠️ Tick timeout — reconnecting');
-      _scheduleReconnect();
+      final elapsed = DateTime.now().millisecondsSinceEpoch - _lastTickMs;
+      if (elapsed > tickIntervalMs * 3) {
+        log('⚠️ Tick timeout — reconnecting (no tick for ${elapsed}ms)');
+        _scheduleReconnect();
+      }
     });
+
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
 
     final serverVersion = (payload['server'] as Map<String, dynamic>?)?
             ['version'] as String? ?? 'unknown';
@@ -339,7 +370,7 @@ class OpenClawNodeService {
     if (!isConnected) return;
     _sendFrame(type: WsFrame.req, id: _nextRequestId(), method: 'node.event', params: {
       'event': eventName,
-      'payloadJSON': jsonEncode(payload),
+      'payload': payload,
     });
   }
 
@@ -388,6 +419,10 @@ class OpenClawNodeService {
     );
     log('🔄 Reconnecting in ${delay ~/ 1000}s');
     _reconnectTimer = Timer(Duration(milliseconds: delay), () {
+      _fallbackTimer?.cancel();
+      _fallbackTimer = null;
+      _subscription?.cancel();
+      _subscription = null;
       _channel = null;
       _connectNonce = null;
       _sentConnect = false;
@@ -424,7 +459,6 @@ class OpenClawNodeService {
       bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
   String bytesToBase64Url(List<int> bytes) {
-    // Standard base64 then replace +/ with -_ and remove padding
     final b64 = base64Encode(bytes);
     return b64.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
   }
@@ -460,9 +494,15 @@ class OpenClawNodeService {
   void dispose() {
     _active = false;
     _reconnectTimer?.cancel();
+    _fallbackTimer?.cancel();
     _tickTimer?.cancel();
+    _subscription?.cancel();
     _channel?.sink.close();
     _channel = null;
+    for (final completer in _pendingRpcs.values) {
+      completer.completeError(Exception('Service disposed'));
+    }
+    _pendingRpcs.clear();
     stateNotifier.dispose();
     statusNotifier.dispose();
   }

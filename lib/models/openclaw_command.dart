@@ -96,7 +96,7 @@ class WsFrame {
   bool get isConnectChallenge =>
       type == event && eventName == 'connect.challenge';
 
-  bool get isHelloOk => type == res && ok == true && id != null;
+  bool get isHelloOk => type == res && ok == true && id != null && method == 'connect';
 
   bool get isInvokeRequest =>
       type == event && eventName == 'node.invoke.request';

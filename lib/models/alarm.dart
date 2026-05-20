@@ -93,8 +93,26 @@ class TimeOfDay {
 
   int get totalMinutes => hour * 60 + minute;
 
-  DateTime nextOccurrence(DateTime now) {
+  /// Find the next occurrence of this time, respecting [repeatDays].
+  DateTime nextOccurrence(DateTime now, [List<bool> repeatDays = const []]) {
     final today = DateTime(now.year, now.month, now.day, hour, minute);
+    // If the alarm has repeat days, advance to the next valid day.
+    if (repeatDays.any((d) => d)) {
+      // If today's alarm time hasn't passed and today is a repeat day, use today
+      final todayWeekday = now.weekday == 7 ? 0 : now.weekday;
+      if (today.isAfter(now) && repeatDays[todayWeekday]) {
+        return today;
+      }
+      // Otherwise find the next repeat day
+      for (var i = 1; i <= 7; i++) {
+        final next = now.add(Duration(days: i));
+        final dayOfWeek = next.weekday == 7 ? 0 : next.weekday;
+        if (repeatDays[dayOfWeek]) {
+          return DateTime(next.year, next.month, next.day, hour, minute);
+        }
+      }
+    }
+    // No repeat days or no valid future repeat day: schedule tomorrow
     return today.isAfter(now) ? today : today.add(const Duration(days: 1));
   }
 

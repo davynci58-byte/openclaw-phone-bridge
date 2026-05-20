@@ -9,7 +9,7 @@ import 'alarm_screen.dart';
 import 'settings_screen.dart';
 
 /// Main dashboard showing an overview of upcoming events and alarms.
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final OpenClawNodeService nodeService;
   final CalendarService calendarService;
   final AlarmService alarmService;
@@ -20,6 +20,32 @@ class HomeScreen extends StatelessWidget {
     required this.calendarService,
     required this.alarmService,
   });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+
+
+
+  @override
+  void initState() {
+    super.initState();
+    widget.calendarService.addListener(_onDataChanged);
+    widget.alarmService.addListener(_onDataChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.calendarService.removeListener(_onDataChanged);
+    widget.alarmService.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,12 +66,12 @@ class HomeScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       )),
                   const Spacer(),
-                  ConnectionDot(service: nodeService),
+                  ConnectionDot(service: widget.nodeService),
                 ],
               ),
             ),
           ),
-          ConnectionStatusBar(service: nodeService),
+          ConnectionStatusBar(service: widget.nodeService),
 
           // Content
           Expanded(
@@ -85,8 +111,8 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildSummaryCards(BuildContext context) {
     final theme = Theme.of(context);
-    final upcomingEvents = calendarService.upcomingEvents(24);
-    final activeAlarms = alarmService.alarms.where((a) => a.enabled).length;
+    final upcomingEvents = widget.calendarService.upcomingEvents(24);
+    final activeAlarms = widget.alarmService.alarms.where((a) => a.enabled).length;
 
     return Row(
       children: [
@@ -95,12 +121,12 @@ class HomeScreen extends StatelessWidget {
             theme,
             icon: Icons.calendar_month,
             label: 'Today',
-            value: calendarService.eventsForDate(DateTime.now()).length.toString(),
+            value: widget.calendarService.eventsForDate(DateTime.now()).length.toString(),
             color: Colors.blue,
             onTap: () => _navigateTo(context, CalendarScreen(
-              nodeService: nodeService,
-              calendarService: calendarService,
-              alarmService: alarmService,
+              nodeService: widget.nodeService,
+              calendarService: widget.calendarService,
+              alarmService: widget.alarmService,
             )),
           ),
         ),
@@ -113,9 +139,9 @@ class HomeScreen extends StatelessWidget {
             value: '$activeAlarms active',
             color: Colors.orange,
             onTap: () => _navigateTo(context, AlarmScreen(
-              nodeService: nodeService,
-              calendarService: calendarService,
-              alarmService: alarmService,
+              nodeService: widget.nodeService,
+              calendarService: widget.calendarService,
+              alarmService: widget.alarmService,
             )),
           ),
         ),
@@ -184,7 +210,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildUpcomingEvents(BuildContext context) {
-    final events = calendarService.upcomingEvents(48);
+    final events = widget.calendarService.upcomingEvents(48);
     if (events.isEmpty) {
       return Card(
         child: Padding(
@@ -221,7 +247,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildAlarmList(BuildContext context) {
-    final enabled = alarmService.alarms.where((a) => a.enabled).toList();
+    final enabled = widget.alarmService.alarms.where((a) => a.enabled).toList();
     if (enabled.isEmpty) {
       return Card(
         child: Padding(
@@ -276,21 +302,21 @@ class HomeScreen extends StatelessWidget {
               _navItem(Icons.home, 'Home', true, () {}),
               _navItem(Icons.calendar_month, 'Calendar', false, () {
                 _navigateTo(context, CalendarScreen(
-                  nodeService: nodeService,
-                  calendarService: calendarService,
-                  alarmService: alarmService,
+                  nodeService: widget.nodeService,
+                  calendarService: widget.calendarService,
+                  alarmService: widget.alarmService,
                 ));
               }),
               _navItem(Icons.alarm, 'Alarms', false, () {
                 _navigateTo(context, AlarmScreen(
-                  nodeService: nodeService,
-                  calendarService: calendarService,
-                  alarmService: alarmService,
+                  nodeService: widget.nodeService,
+                  calendarService: widget.calendarService,
+                  alarmService: widget.alarmService,
                 ));
               }),
               _navItem(Icons.settings, 'Settings', false, () {
                 _navigateTo(context, SettingsScreen(
-                  nodeService: nodeService,
+                  nodeService: widget.nodeService,
                 ));
               }),
             ],

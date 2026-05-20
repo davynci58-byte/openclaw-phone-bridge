@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -33,7 +34,7 @@ class StorageService {
 
   String _initDeviceId() {
     final id = _uuid.v4();
-    _prefs.setString(_keyDeviceId, id);
+    unawaited(_prefs.setString(_keyDeviceId, id));
     return id;
   }
 
@@ -52,8 +53,9 @@ class StorageService {
   }
 
   String? get lastConnectUri => _prefs.getString(_keyLastConnectUri);
-  Future<void> setLastConnectUri(String uri) async =>
-      _prefs.setString(_keyLastConnectUri, uri);
+  Future<void> setLastConnectUri(String uri) async {
+    await _prefs.setString(_keyLastConnectUri, uri);
+  }
 
   // ── Calendar Events ───────────────────────────────────────────────
 

@@ -78,21 +78,31 @@ class CalendarService extends ChangeNotifier {
   }
 
   /// Get events for a specific date.
+  /// Includes multi-day events that span across the date.
   List<CalendarEvent> eventsForDate(DateTime date) {
     final dayStart = DateTime(date.year, date.month, date.day);
     final dayEnd = dayStart.add(const Duration(hours: 24));
     return _events
-        .where((e) => e.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1)))
-            && e.startTime.isBefore(dayEnd))
+        .where((e) =>
+            // Event starts within this day
+            (e.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1)))
+                && e.startTime.isBefore(dayEnd)) ||
+            // Event started before but ends during or after this day
+            (e.startTime.isBefore(dayStart) && e.endTime.isAfter(dayStart)))
         .toList();
   }
 
   /// Get upcoming events within [hours] from now.
+  /// Includes events that are currently ongoing.
   List<CalendarEvent> upcomingEvents(int hours) {
     final now = DateTime.now();
     final until = now.add(Duration(hours: hours));
     return _events
-        .where((e) => e.startTime.isAfter(now) && e.startTime.isBefore(until))
+        .where((e) =>
+            // Events starting within the window
+            (e.startTime.isAfter(now) && e.startTime.isBefore(until)) ||
+            // Currently ongoing events
+            (e.startTime.isBefore(now) && e.endTime.isAfter(now)))
         .toList();
   }
 }
